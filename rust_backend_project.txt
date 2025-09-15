@@ -1,0 +1,45 @@
+# Rust Backend Project: Simple REST API
+# File: main.rs
+
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+
+#[derive(Serialize, Deserialize, Clone)]
+struct User {
+    id: u32,
+    name: String,
+    email: String,
+}
+
+struct AppState {
+    users: Mutex<Vec<User>>,
+}
+
+async fn get_users(data: web::Data<AppState>) -> impl Responder {
+    let users = data.users.lock().unwrap();
+    HttpResponse::Ok().json(&*users)
+}
+
+async fn add_user(user: web::Json<User>, data: web::Data<AppState>) -> impl Responder {
+    let mut users = data.users.lock().unwrap();
+    users.push(user.into_inner());
+    HttpResponse::Ok().json("User added successfully")
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let app_state = web::Data::new(AppState {
+        users: Mutex::new(vec![]),
+    });
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone())
+            .route("/users", web::get().to(get_users))
+            .route("/users", web::post().to(add_user))
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
+}
